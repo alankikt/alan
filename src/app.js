@@ -1,13 +1,4 @@
 import { classifyNorwegianDay, DAY_TYPES, toDateKey } from './calendar.js';
-import {
-  getActiveSession,
-  getFirstClockIn,
-  getLastClockOut,
-  getSessionSummary,
-  getTotalMilliseconds,
-  normalizeEntry,
-  stampEntry,
-} from './timeEntries.js';
 
 const STORAGE_KEYS = {
   entries: 'norsk-stempling:entries',
