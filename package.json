@@ -1,0 +1,10 @@
+{
+  "name": "norsk-stempling",
+  "version": "1.0.0",
+  "description": "En enkel nettapp for stempling inn og ut med norsk kalenderlogikk.",
+  "type": "module",
+  "scripts": {
+    "start": "node server.js",
+    "test": "node --test"
+  }
+}
