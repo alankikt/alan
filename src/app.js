@@ -56,21 +56,13 @@ function stamp(direction) {
   const now = new Date();
   const dateKey = toDateKey(now);
   const dayInfo = classifyNorwegianDay(now, state.daysOff);
-  const entry = state.entries[dateKey] || {
-    date: dateKey,
-    dayLabel: dayInfo.label,
-    dayReason: dayInfo.reason,
-  };
-
-  if (direction === 'in') {
-    entry.in = entry.in || now.toISOString();
-  } else {
-    entry.out = now.toISOString();
-  }
-
-  entry.dayLabel = dayInfo.label;
-  entry.dayReason = dayInfo.reason;
-  state.entries[dateKey] = entry;
+  state.entries[dateKey] = stampEntry(
+    state.entries[dateKey],
+    direction,
+    now.toISOString(),
+    dateKey,
+    dayInfo,
+  );
   writeStorage(STORAGE_KEYS.entries, state.entries);
   render();
 }
@@ -108,8 +100,13 @@ function clearLog() {
 function render() {
   const now = new Date();
   const dateKey = toDateKey(now);
-  const todayEntry = state.entries[dateKey];
+  const todayEntry = state.entries[dateKey]
+    ? normalizeEntry(state.entries[dateKey], dateKey, classifyNorwegianDay(now, state.daysOff))
+    : undefined;
   const dayInfo = classifyNorwegianDay(now, state.daysOff);
+  if (todayEntry) {
+    state.entries[dateKey] = todayEntry;
+  }
 
   elements.currentTime.textContent = timeFormatter.format(now);
   elements.currentDate.textContent = capitalize(formatter.format(now));
@@ -119,14 +116,19 @@ function render() {
     ? 'Dette er en ordinær arbeidsdag.'
     : 'Dette er normalt fri i norsk kalender. Stempling er fortsatt mulig ved behov.';
 
-  const isClockedIn = Boolean(todayEntry?.in && !todayEntry?.out);
-  elements.workStatus.textContent = isClockedIn ? 'Stemplet inn' : 'Ikke stemplet inn';
-  elements.clockIn.disabled = Boolean(todayEntry?.in && !todayEntry?.out);
-  elements.clockOut.disabled = !todayEntry?.in || Boolean(todayEntry?.out);
+  const activeSession = getActiveSession(todayEntry);
+  const isClockedIn = Boolean(activeSession);
+  elements.workStatus.textContent = isClockedIn
+    ? `Stemplet inn siden ${formatStoredTime(activeSession.in)}`
+    : 'Ikke stemplet inn';
+  elements.clockIn.disabled = isClockedIn;
+  elements.clockOut.disabled = !isClockedIn;
 
-  elements.todayIn.textContent = formatStoredTime(todayEntry?.in);
-  elements.todayOut.textContent = formatStoredTime(todayEntry?.out);
-  elements.todayDuration.textContent = formatDuration(todayEntry?.in, todayEntry?.out || (isClockedIn ? now.toISOString() : undefined));
+  elements.todayIn.textContent = formatStoredTime(getFirstClockIn(todayEntry));
+  elements.todayOut.textContent = formatStoredTime(getLastClockOut(todayEntry));
+  elements.todayDuration.textContent = formatMilliseconds(
+    getTotalMilliseconds(todayEntry, isClockedIn ? now.toISOString() : undefined),
+  );
 
   renderDaysOff();
   renderLog();
@@ -159,7 +161,9 @@ function renderDaysOff() {
 }
 
 function renderLog() {
-  const rows = Object.values(state.entries).sort((a, b) => b.date.localeCompare(a.date));
+  const rows = Object.values(state.entries)
+    .map((entry) => normalizeEntry(entry, entry.date, { label: entry.dayLabel, reason: entry.dayReason }))
+    .sort((a, b) => b.date.localeCompare(a.date));
   elements.logBody.innerHTML = '';
 
   if (rows.length === 0) {
@@ -173,9 +177,9 @@ function renderLog() {
     const cells = [
       formatDateKey(entry.date),
       `${dayInfo.label}: ${dayInfo.reason}`,
-      formatStoredTime(entry.in),
-      formatStoredTime(entry.out),
-      formatDuration(entry.in, entry.out),
+      formatStoredTime(getFirstClockIn(entry)),
+      `${formatStoredTime(getLastClockOut(entry))} (${getSessionSummary(entry, formatStoredTime)})`,
+      formatMilliseconds(getTotalMilliseconds(entry)),
     ];
 
     for (const value of cells) {
@@ -192,13 +196,8 @@ function formatStoredTime(value) {
   return value ? timeFormatter.format(new Date(value)) : '–';
 }
 
-function formatDuration(start, end) {
-  if (!start || !end) {
-    return '0 t 0 min';
-  }
-
-  const milliseconds = Math.max(0, new Date(end) - new Date(start));
-  const totalMinutes = Math.floor(milliseconds / 60000);
+function formatMilliseconds(milliseconds) {
+  const totalMinutes = Math.floor(Math.max(0, milliseconds) / 60000);
   const hours = Math.floor(totalMinutes / 60);
   const minutes = totalMinutes % 60;
 
@@ -214,10 +213,20 @@ function capitalize(value) {
 }
 
 function readStorage(key, fallback) {
-  const value = localStorage.getItem(key);
-  return value ? JSON.parse(value) : fallback;
+  try {
+    const value = localStorage.getItem(key);
+    return value ? JSON.parse(value) : fallback;
+  } catch (error) {
+    console.warn(`Kunne ikke lese ${key} fra lokal lagring`, error);
+    return fallback;
+  }
 }
 
 function writeStorage(key, value) {
-  localStorage.setItem(key, JSON.stringify(value));
+  try {
+    localStorage.setItem(key, JSON.stringify(value));
+  } catch (error) {
+    console.error(`Kunne ikke lagre ${key} lokalt`, error);
+    elements.dayMessage.textContent = 'Kunne ikke lagre lokalt i denne nettleseren. Sjekk at localStorage er tilgjengelig.';
+  }
 }

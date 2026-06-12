@@ -4,9 +4,9 @@ En enkel nettapp for å stemple inn og ut på jobb. Appen bruker nettleserens `l
 
 ## Funksjoner
 
-- Stemple inn og ut for dagens dato.
-- Se dagens innstempling, utstempling og beregnet arbeidstid.
-- Stemplingslogg per dato.
+- Stemple inn og ut for dagens dato, inkludert flere arbeidsøkter samme dag.
+- Se dagens første innstempling, siste utstempling og samlet beregnet arbeidstid.
+- Stemplingslogg per dato med øktoppsummering.
 - Norsk kalenderlogikk for helg og norske helligdager.
 - Mulighet til å registrere egne feriedager og andre fridager.
 
